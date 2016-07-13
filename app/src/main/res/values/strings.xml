@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Background Face Tracker</string>
+    <string name="start">Start</string>
+    <string name="stop">Stop</string>
+</resources>
