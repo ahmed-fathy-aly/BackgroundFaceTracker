@@ -2,31 +2,43 @@ package com.enterprises.wayne.simplefacedetectorexample;
 
 import android.Manifest;
 import android.app.Service;
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
-import android.hardware.display.DisplayManager;
-import android.os.Binder;
+import android.media.MediaScannerConnection;
+import android.net.Uri;
+import android.os.Environment;
+import android.os.Handler;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.WakefulBroadcastReceiver;
 import android.util.Log;
-import android.view.Display;
 
 import com.google.android.gms.vision.CameraSource;
 import com.google.android.gms.vision.MultiProcessor;
 import com.google.android.gms.vision.face.FaceDetector;
+
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
 
 /**
  * a background service that tracks faces and feeds the info of each instance to a FaceTracker
  */
 public class FaceTrackingService extends Service
 {
+    /* constants */
+    public static final int TAKE_PHOTO_DELAY = 3000; // the number of milliseconds between taking photos
+
+    /* fields */
     private CameraSource mCameraSource;
-    private FaceDetector mdetector;
+    private FaceDetector mDetector;
     private DeviceIdleReceiver receiver;
     private PowerManager.WakeLock wakeLock;
 
@@ -53,7 +65,6 @@ public class FaceTrackingService extends Service
 
         // stop tracking if the screen goes idle
         addDeviceIdleMonitor();
-
     }
 
     @Override
@@ -74,21 +85,20 @@ public class FaceTrackingService extends Service
         Log.e("Game", "starting tracking");
 
         // setup the face tracker
-        mdetector = new FaceDetector.Builder(this)
+        mDetector = new FaceDetector.Builder(this)
                 .setClassificationType(FaceDetector.ALL_CLASSIFICATIONS)
                 .build();
 
         // assign the processor which gets invoked with camera updates
-        mdetector.setProcessor(
+        mDetector.setProcessor(
                 new MultiProcessor.Builder<>(new FaceTrackerFactory())
                         .build());
-        Log.e("Game", "detector operational " + mdetector.isOperational());
+        Log.e("Game", "detector operational " + mDetector.isOperational());
 
         // setup camera source
-        mCameraSource = new CameraSource.Builder(this, mdetector)
-                .setRequestedPreviewSize(640, 480)
+        mCameraSource = new CameraSource.Builder(this, mDetector)
                 .setFacing(CameraSource.CAMERA_FACING_FRONT)
-                .setRequestedFps(30.0f)
+                .setRequestedFps(10.0f)
                 .build();
 
         // start the camera source
@@ -104,6 +114,9 @@ public class FaceTrackingService extends Service
             e.printStackTrace();
         }
 
+        // take and save the pictures seen by the detector
+        takePicture(3000);
+
     }
 
     /**
@@ -116,10 +129,100 @@ public class FaceTrackingService extends Service
         if (mCameraSource != null)
         {
             mCameraSource.release();
-            mdetector.release();
+            mDetector.release();
+            mCameraSource = null;
         }
-
     }
+
+    /**
+     * takes a picture and schedule another one after that delay
+     */
+    private void takePicture(final int delayTillNextPicture)
+    {
+        // check if stopped tracking
+        if (mCameraSource == null)
+            return;
+
+        // take a picture
+        mCameraSource.takePicture(null, new CameraSource.PictureCallback()
+        {
+            @Override
+            public void onPictureTaken(byte[] bytes)
+            {
+                savePicture(bytes);
+
+            }
+        });
+
+        // schedule to take another
+        new Handler().postDelayed(new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                takePicture(delayTillNextPicture);
+            }
+        }, delayTillNextPicture);
+    }
+
+    /**
+     * saves to a file(you'll find it in internal storage/pictures
+     * the file name will be something like FaceTracker 03-18-00 (hour-minutes-seconds)
+     */
+    private void savePicture(byte[] bytes)
+    {
+        // create a file for the image
+        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("hh-mm-ss");
+        String currentDate = simpleDateFormat.format(Calendar.getInstance().getTime());
+        String fileName = "FaceTracker " + currentDate + ".png";
+         File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), fileName);
+        try
+        {
+            file.createNewFile();
+        } catch (IOException e)
+        {
+            e.printStackTrace();
+        }
+        Log.e("Game", "saving picture at " + file.getPath());
+
+        // write the image to the file
+        OutputStream fOut = null;
+        try
+        {
+            fOut = new FileOutputStream(file.getAbsolutePath());
+            fOut.write(bytes);
+
+            // ask the media scanner to include this file so we can see it in the file explorer
+            MediaScannerConnection.scanFile(this,
+                    new String[] { file.toString() }, null,
+                    new MediaScannerConnection.OnScanCompletedListener() {
+                        public void onScanCompleted(String path, Uri uri) {
+                            Log.i("ExternalStorage", "Scanned " + path + ":");
+                            Log.i("ExternalStorage", "-> uri=" + uri);
+                        }
+                    });
+
+        } catch (FileNotFoundException e)
+        {
+            Log.e("Game", "error saving picture " + e.getMessage());
+            e.printStackTrace();
+        } catch (IOException e)
+        {
+            Log.e("Game", "error saving picture " + e.getMessage());
+            e.printStackTrace();
+        } finally
+        {
+            try
+            {
+                fOut.flush();
+                fOut.close();
+            } catch (IOException e)
+            {
+                e.printStackTrace();
+            }
+        }
+    }
+
 
     /**
      * registers a receiver that stops tracking if the device is idle
@@ -136,19 +239,6 @@ public class FaceTrackingService extends Service
         getApplicationContext().registerReceiver(receiver, filter);
     }
 
-    /**
-     * unregisters the receiver that checks if the device is idle
-     */
-    public void removeDeviceIdleMonitor()
-    {
-        if (receiver != null)
-            try
-            {
-                unregisterReceiver(receiver);
-            } catch (Exception e)
-            {
-            }
-    }
 
 
     @Override
@@ -157,6 +247,10 @@ public class FaceTrackingService extends Service
         return null;
     }
 
+    /**
+     * starts tracking if the screen became active
+     * stops tracking if the screen goes idle
+     */
     class DeviceIdleReceiver extends WakefulBroadcastReceiver
     {
         @Override
