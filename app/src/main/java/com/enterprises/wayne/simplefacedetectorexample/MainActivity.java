@@ -1,5 +1,6 @@
 package com.enterprises.wayne.simplefacedetectorexample;
 
+import android.app.ActivityManager;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.ServiceConnection;
@@ -16,16 +17,13 @@ import com.google.android.gms.vision.CameraSource;
 
 import butterknife.internal.DebouncingOnClickListener;
 
-public class MainActivity extends AppCompatActivity implements ServiceConnection
+public class MainActivity extends AppCompatActivity
 {
 
-    /* fields */
-    private CameraSource mCameraSource;
-    private FaceTrackingService mfaceTrackingService;
-    private boolean mBoundToService;
-
     /* UI */
-    private Button mButtonStartOrStop;
+    private Button mButtonStart;
+    private Button mButtonStop;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState)
@@ -34,56 +32,52 @@ public class MainActivity extends AppCompatActivity implements ServiceConnection
         setContentView(R.layout.activity_main);
 
         // reference views
-        mButtonStartOrStop = (Button) findViewById(R.id.buttonStartOrStop);
+        mButtonStart = (Button) findViewById(R.id.buttonStart);
+        mButtonStop = (Button) findViewById(R.id.buttonStop);
+
 
         // add listener, starts or stops the tracker in the FaceTrackingSerivice
-        mButtonStartOrStop.setOnClickListener(new DebouncingOnClickListener()
+        mButtonStart.setOnClickListener(new DebouncingOnClickListener()
         {
             @Override
             public void doClick(View v)
             {
-                if (!mBoundToService)
-                    return;
-
-                if (mButtonStartOrStop.getText().equals(getString(R.string.start)))
-                {
-                    mfaceTrackingService.startTracking();
-                    mButtonStartOrStop.setText(R.string.stop);
-                } else
-                {
-                    mfaceTrackingService.stopTracking();
-                    mButtonStartOrStop.setText(R.string.start);
-                }
+                Intent intent = new Intent(MainActivity.this, FaceTrackingService.class);
+                getApplicationContext().startService(intent);
+                mButtonStart.setEnabled(false);
+                mButtonStop.setEnabled(true);
+            }
+        });
+        mButtonStop.setOnClickListener(new DebouncingOnClickListener()
+        {
+            @Override
+            public void doClick(View v)
+            {
+                Intent intent = new Intent(MainActivity.this, FaceTrackingService.class);
+                getApplicationContext().stopService(intent);
+                mButtonStart.setEnabled(true);
+                mButtonStop.setEnabled(false);
             }
         });
 
-
+        // check which button to enable
+        if (isServiceRunning(FaceTrackingService.class))
+            mButtonStart.setEnabled(false);
+        else
+            mButtonStop.setEnabled(false);
     }
 
-    @Override
-    protected void onStart()
+    /**
+     * checks if a specific service is running now or not
+     */
+    private boolean isServiceRunning(Class<?> serviceClass)
     {
-        super.onStart();
-
-        // bind to the facetracking service
-        Intent intent = new Intent(this, FaceTrackingService.class);
-        bindService(intent, this, Context.BIND_AUTO_CREATE);
+        ActivityManager manager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+        for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE))
+            if (serviceClass.getName().equals(service.service.getClassName()))
+                return true;
+        return false;
     }
 
-    @Override
-    public void onServiceConnected(ComponentName name, IBinder binder)
-    {
-        Log.e("Game", "service connected");
-        mBoundToService = true;
-        FaceTrackingService.LocalBinder localBinder = (FaceTrackingService.LocalBinder) binder;
-        mfaceTrackingService = localBinder.getService();
-        mButtonStartOrStop.setText(mfaceTrackingService.isTracking() ? R.string.stop : R.string.start);
-    }
 
-    @Override
-    public void onServiceDisconnected(ComponentName name)
-    {
-        Log.e("Game", "service disconnected");
-        mBoundToService = false;
-    }
 }

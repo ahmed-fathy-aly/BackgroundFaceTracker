@@ -2,12 +2,19 @@ package com.enterprises.wayne.simplefacedetectorexample;
 
 import android.Manifest;
 import android.app.Service;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.hardware.display.DisplayManager;
 import android.os.Binder;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.WakefulBroadcastReceiver;
 import android.util.Log;
+import android.view.Display;
 
 import com.google.android.gms.vision.CameraSource;
 import com.google.android.gms.vision.MultiProcessor;
@@ -18,15 +25,46 @@ import com.google.android.gms.vision.face.FaceDetector;
  */
 public class FaceTrackingService extends Service
 {
-    private IBinder mBinder = new LocalBinder();
     private CameraSource mCameraSource;
     private FaceDetector mdetector;
-    private boolean mIsTracking;
+    private DeviceIdleReceiver receiver;
+    private PowerManager.WakeLock wakeLock;
 
     public FaceTrackingService()
     {
     }
 
+
+    @Override
+    public void onCreate()
+    {
+        super.onCreate();
+
+        Log.e("Game", "onCreate");
+
+        // remain alive
+        PowerManager pm = (PowerManager) getApplicationContext().getSystemService(
+                getApplicationContext().POWER_SERVICE);
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "faceTrackerWakeLock");
+        wakeLock.acquire();
+
+        // track
+        startTracking();
+
+        // stop tracking if the screen goes idle
+        addDeviceIdleMonitor();
+
+    }
+
+    @Override
+    public void onDestroy()
+    {
+        super.onDestroy();
+
+        Log.e("Game", "onDestroy");
+        stopTracking();
+        wakeLock.release();
+    }
 
     /**
      * sets up the detector and the camera source and starts monitoring for faces
@@ -49,7 +87,7 @@ public class FaceTrackingService extends Service
         // setup camera source
         mCameraSource = new CameraSource.Builder(this, mdetector)
                 .setRequestedPreviewSize(640, 480)
-                .setFacing(CameraSource.CAMERA_FACING_BACK)
+                .setFacing(CameraSource.CAMERA_FACING_FRONT)
                 .setRequestedFps(30.0f)
                 .build();
 
@@ -59,7 +97,6 @@ public class FaceTrackingService extends Service
             if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED)
                 stopSelf();
             mCameraSource.start();
-            mIsTracking = true;
             Log.e("Game", "camera source started");
         } catch (Exception e)
         {
@@ -74,38 +111,62 @@ public class FaceTrackingService extends Service
      */
     public void stopTracking()
     {
+        Log.e("Game", "stop tracking");
+
         if (mCameraSource != null)
         {
             mCameraSource.release();
             mdetector.release();
         }
 
-        mIsTracking = false;
     }
 
     /**
-     * checks if the detector is currently monitoring
+     * registers a receiver that stops tracking if the device is idle
      */
-    public boolean isTracking()
+    public void addDeviceIdleMonitor()
     {
-        return mIsTracking;
+        // create the intent filter
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(Intent.ACTION_SCREEN_OFF);
+        filter.addAction(Intent.ACTION_SCREEN_ON);
+
+        // create and registers the receiver
+        receiver = new DeviceIdleReceiver();
+        getApplicationContext().registerReceiver(receiver, filter);
     }
 
     /**
-     * binds the service to an activity
+     * unregisters the receiver that checks if the device is idle
      */
-    public class LocalBinder extends Binder
+    public void removeDeviceIdleMonitor()
     {
-        FaceTrackingService getService()
-        {
-            return FaceTrackingService.this;
-        }
+        if (receiver != null)
+            try
+            {
+                unregisterReceiver(receiver);
+            } catch (Exception e)
+            {
+            }
     }
+
 
     @Override
     public IBinder onBind(Intent intent)
     {
-        return mBinder;
+        return null;
     }
 
+    class DeviceIdleReceiver extends WakefulBroadcastReceiver
+    {
+        @Override
+        public void onReceive(Context context, Intent intent)
+        {
+            Log.e("Game", "device idle monitor" + intent.getAction());
+            if (intent.getAction().equals(Intent.ACTION_SCREEN_ON))
+                startTracking();
+            else
+                stopTracking();
+        }
+    }
 }
