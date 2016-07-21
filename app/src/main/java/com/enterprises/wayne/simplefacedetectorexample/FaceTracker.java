@@ -13,6 +13,15 @@ import com.google.android.gms.vision.face.FaceDetector;
  */
 public class FaceTracker extends Tracker<Face>
 {
+
+    private final TrackerListener listener;
+
+    FaceTracker(TrackerListener listener)
+    {
+        super();
+        this.listener = listener;
+    }
+
     /**
      * Start tracking the detected face instance within the face overlay.
      */
@@ -29,6 +38,10 @@ public class FaceTracker extends Tracker<Face>
     public void onUpdate(FaceDetector.Detections<Face> detectionResults, Face face)
     {
         Log.e("Game", "update on face " + face.getId());
+
+        // invoke the listener
+        if (listener != null)
+            listener.onUpdate(face.getId());
     }
 
     /**

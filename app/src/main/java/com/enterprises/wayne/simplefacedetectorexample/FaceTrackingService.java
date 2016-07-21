@@ -31,11 +31,8 @@ import java.util.Calendar;
 /**
  * a background service that tracks faces and feeds the info of each instance to a FaceTracker
  */
-public class FaceTrackingService extends Service
+public class FaceTrackingService extends Service implements TrackerListener
 {
-    /* constants */
-    public static final int TAKE_PHOTO_DELAY = 3000; // the number of milliseconds between taking photos
-
     /* fields */
     private CameraSource mCameraSource;
     private FaceDetector mDetector;
@@ -91,7 +88,7 @@ public class FaceTrackingService extends Service
 
         // assign the processor which gets invoked with camera updates
         mDetector.setProcessor(
-                new MultiProcessor.Builder<>(new FaceTrackerFactory())
+                new MultiProcessor.Builder<>(new FaceTrackerFactory(this))
                         .build());
         Log.e("Game", "detector operational " + mDetector.isOperational());
 
@@ -113,10 +110,6 @@ public class FaceTrackingService extends Service
             Log.e("Game", "error starting camera source");
             e.printStackTrace();
         }
-
-        // take and save the pictures seen by the detector
-        takePicture(3000);
-
     }
 
     /**
@@ -137,7 +130,7 @@ public class FaceTrackingService extends Service
     /**
      * takes a picture and schedule another one after that delay
      */
-    private void takePicture(final int delayTillNextPicture)
+    private void takePicture(final int faceId)
     {
         // check if stopped tracking
         if (mCameraSource == null)
@@ -149,33 +142,24 @@ public class FaceTrackingService extends Service
             @Override
             public void onPictureTaken(byte[] bytes)
             {
-                savePicture(bytes);
+                savePicture(bytes, faceId);
 
             }
         });
 
-        // schedule to take another
-        new Handler().postDelayed(new Runnable()
-        {
-            @Override
-            public void run()
-            {
-                takePicture(delayTillNextPicture);
-            }
-        }, delayTillNextPicture);
     }
 
     /**
      * saves to a file(you'll find it in internal storage/pictures
      * the file name will be something like FaceTracker 03-18-00 (hour-minutes-seconds)
      */
-    private void savePicture(byte[] bytes)
+    private void savePicture(byte[] bytes, int faceId)
     {
         // create a file for the image
         SimpleDateFormat simpleDateFormat = new SimpleDateFormat("hh-mm-ss");
         String currentDate = simpleDateFormat.format(Calendar.getInstance().getTime());
-        String fileName = "FaceTracker " + currentDate + ".png";
-         File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), fileName);
+        String fileName = "FaceTracker " + faceId + " " + currentDate + ".png";
+        File file = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), fileName);
         try
         {
             file.createNewFile();
@@ -194,9 +178,11 @@ public class FaceTrackingService extends Service
 
             // ask the media scanner to include this file so we can see it in the file explorer
             MediaScannerConnection.scanFile(this,
-                    new String[] { file.toString() }, null,
-                    new MediaScannerConnection.OnScanCompletedListener() {
-                        public void onScanCompleted(String path, Uri uri) {
+                    new String[]{file.toString()}, null,
+                    new MediaScannerConnection.OnScanCompletedListener()
+                    {
+                        public void onScanCompleted(String path, Uri uri)
+                        {
                             Log.i("ExternalStorage", "Scanned " + path + ":");
                             Log.i("ExternalStorage", "-> uri=" + uri);
                         }
@@ -240,12 +226,18 @@ public class FaceTrackingService extends Service
     }
 
 
+    @Override
+    public void onUpdate(int faceId)
+    {
+        takePicture(faceId);
+    }
 
     @Override
     public IBinder onBind(Intent intent)
     {
         return null;
     }
+
 
     /**
      * starts tracking if the screen became active
@@ -263,4 +255,5 @@ public class FaceTrackingService extends Service
                 stopTracking();
         }
     }
+
 }
