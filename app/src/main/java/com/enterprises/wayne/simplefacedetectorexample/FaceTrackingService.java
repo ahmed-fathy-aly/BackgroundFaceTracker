@@ -9,7 +9,6 @@ import android.content.pm.PackageManager;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
 import android.os.Environment;
-import android.os.Handler;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.support.v4.app.ActivityCompat;
@@ -58,7 +57,9 @@ public class FaceTrackingService extends Service implements TrackerListener
         wakeLock.acquire();
 
         // track
-        startTracking();
+        PowerManager powerManager = (PowerManager) getSystemService(POWER_SERVICE);
+        if (powerManager.isScreenOn())
+            startTracking();
 
         // stop tracking if the screen goes idle
         addDeviceIdleMonitor();
@@ -107,7 +108,7 @@ public class FaceTrackingService extends Service implements TrackerListener
             Log.e("Game", "camera source started");
         } catch (Exception e)
         {
-            Log.e("Game", "error starting camera source");
+            Log.e("Game", "error starting camera source " + e.getMessage());
             e.printStackTrace();
         }
     }
