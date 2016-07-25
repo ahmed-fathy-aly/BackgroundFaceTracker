@@ -15,6 +15,7 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.WakefulBroadcastReceiver;
 import android.util.Log;
 
+import com.crashlytics.android.Crashlytics;
 import com.google.android.gms.vision.CameraSource;
 import com.google.android.gms.vision.MultiProcessor;
 import com.google.android.gms.vision.face.FaceDetector;
@@ -112,7 +113,7 @@ public class FaceTrackingService extends Service implements TrackerListener
         } catch (Exception e)
         {
             Log.e("Game", "error starting camera source " + e.getMessage());
-            e.printStackTrace();
+            Crashlytics.getInstance().logException(e);
         }
     }
 
@@ -170,6 +171,7 @@ public class FaceTrackingService extends Service implements TrackerListener
         } catch (IOException e)
         {
             e.printStackTrace();
+            Crashlytics.getInstance().logException(e);
         }
         Log.e("Game", "saving picture at " + file.getPath());
 
@@ -195,10 +197,12 @@ public class FaceTrackingService extends Service implements TrackerListener
         } catch (FileNotFoundException e)
         {
             Log.e("Game", "error saving picture " + e.getMessage());
+            Crashlytics.getInstance().logException(e);
             e.printStackTrace();
         } catch (IOException e)
         {
             Log.e("Game", "error saving picture " + e.getMessage());
+            Crashlytics.getInstance().logException(e);
             e.printStackTrace();
         } finally
         {
@@ -209,6 +213,7 @@ public class FaceTrackingService extends Service implements TrackerListener
             } catch (IOException e)
             {
                 e.printStackTrace();
+                Crashlytics.getInstance().logException(e);
             }
         }
     }
