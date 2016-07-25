@@ -7,6 +7,7 @@ import android.util.Log;
 
 /**
  * Created by ahmed on 7/21/2016.
+ * relaunches the face tracking service on device reboot if it was running when the device was powered off
  */
 public class BootReceiver extends BroadcastReceiver
 {

@@ -103,7 +103,10 @@ public class FaceTrackingService extends Service implements TrackerListener
         try
         {
             if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED)
+            {
+                Log.e("Game", "camera permission not granted");
                 stopSelf();
+            }
             mCameraSource.start();
             Log.e("Game", "camera source started");
         } catch (Exception e)
