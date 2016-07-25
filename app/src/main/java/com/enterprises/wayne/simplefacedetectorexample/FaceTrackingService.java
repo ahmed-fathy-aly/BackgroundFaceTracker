@@ -148,7 +148,6 @@ public class FaceTrackingService extends Service implements TrackerListener
             public void onPictureTaken(byte[] bytes)
             {
                 savePicture(bytes, faceId);
-
             }
         });
 
