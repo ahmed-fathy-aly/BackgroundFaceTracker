@@ -17,10 +17,9 @@ import com.crashlytics.android.Crashlytics;
 import butterknife.internal.DebouncingOnClickListener;
 import io.fabric.sdk.android.Fabric;
 
-public class MainActivity extends AppCompatActivity
-{
+public class MainActivity extends AppCompatActivity {
     /* constants */
-    private static final int RC_HANDLE_CAMERA_PERM = 2;
+    private static final int RC_HANDLE_PERM = 2;
 
     /* UI */
     private Button mButtonStart;
@@ -28,8 +27,7 @@ public class MainActivity extends AppCompatActivity
 
 
     @Override
-    protected void onCreate(Bundle savedInstanceState)
-    {
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Fabric.with(this, new Crashlytics());
         setContentView(R.layout.activity_main);
@@ -40,11 +38,9 @@ public class MainActivity extends AppCompatActivity
 
 
         // add listener, starts or stops the tracker in the FaceTrackingSerivice
-        mButtonStart.setOnClickListener(new DebouncingOnClickListener()
-        {
+        mButtonStart.setOnClickListener(new DebouncingOnClickListener() {
             @Override
-            public void doClick(View v)
-            {
+            public void doClick(View v) {
                 Intent intent = new Intent(MainActivity.this, FaceTrackingService.class);
                 getApplicationContext().startService(intent);
                 mButtonStart.setEnabled(false);
@@ -52,11 +48,9 @@ public class MainActivity extends AppCompatActivity
                 PreferencesUtils.setServiceStarted(getApplicationContext(), true);
             }
         });
-        mButtonStop.setOnClickListener(new DebouncingOnClickListener()
-        {
+        mButtonStop.setOnClickListener(new DebouncingOnClickListener() {
             @Override
-            public void doClick(View v)
-            {
+            public void doClick(View v) {
                 Intent intent = new Intent(MainActivity.this, FaceTrackingService.class);
                 getApplicationContext().stopService(intent);
                 mButtonStart.setEnabled(true);
@@ -68,14 +62,13 @@ public class MainActivity extends AppCompatActivity
         // check if the service is already running
         if (isServiceRunning(FaceTrackingService.class))
             mButtonStop.setEnabled(true);
-        else
-        {
+        else {
             // check if the camera permission is granted, if not then request it
-            int rc = ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA);
-            if (rc == PackageManager.PERMISSION_GRANTED)
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                    &&ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED)
                 mButtonStart.setEnabled(true);
             else
-                requestCameraPermission();
+                requestPermissions();
 
         }
 
@@ -84,8 +77,7 @@ public class MainActivity extends AppCompatActivity
     /**
      * checks if a specific service is running now or not
      */
-    private boolean isServiceRunning(Class<?> serviceClass)
-    {
+    private boolean isServiceRunning(Class<?> serviceClass) {
         ActivityManager manager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
         for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE))
             if (serviceClass.getName().equals(service.service.getClassName()))
@@ -97,33 +89,23 @@ public class MainActivity extends AppCompatActivity
     /**
      * Handles the requesting of the camera permission.
      */
-    private void requestCameraPermission()
-    {
-        final String[] permissions = new String[]{Manifest.permission.CAMERA};
-        if (!ActivityCompat.shouldShowRequestPermissionRationale(this,
-                Manifest.permission.CAMERA))
-        {
-            ActivityCompat.requestPermissions(this, permissions, RC_HANDLE_CAMERA_PERM);
-            return;
-        }
-
+    private void requestPermissions() {
+        final String[] permissions = new String[]{Manifest.permission.CAMERA, Manifest.permission.WRITE_EXTERNAL_STORAGE};
+        ActivityCompat.requestPermissions(this, permissions, RC_HANDLE_PERM);
     }
 
     /**
      * Callback for the result from requesting permissions.
      */
     @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults)
-    {
-        if (requestCode != RC_HANDLE_CAMERA_PERM)
-        {
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        if (requestCode != RC_HANDLE_PERM) {
             Log.e("Game", "Got unexpected permission result: " + requestCode);
             super.onRequestPermissionsResult(requestCode, permissions, grantResults);
             return;
         }
 
-        if (grantResults.length != 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED)
-        {
+        if (grantResults.length != 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
             mButtonStart.setEnabled(true);
             return;
         }
